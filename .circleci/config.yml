@@ -1,0 +1,56 @@
+version: 2.1
+orbs:
+  python: circleci/python@2.0.0
+
+commands:
+  install-project:
+    steps:
+      - checkout
+      - run:
+          name: Install uv
+          command: pip install uv
+      - run:
+          name: Install Dependencies
+          command: uv sync --extra dev
+
+jobs:
+  lint:
+    executor:
+      name: python/default
+      tag: "3.13"
+    steps:
+      - install-project
+      - run:
+          name: Run ruff linting
+          command: uv run ruff check src
+      - run:
+          name: Check code formatting with ruff
+          command: uv run ruff format --check src
+
+  type-check:
+    executor:
+      name: python/default
+      tag: "3.13"
+    steps:
+      - install-project
+      - run:
+          name: Run mypy type checking
+          command: uv run mypy src
+
+  test:
+    executor:
+      name: python/default
+      tag: "3.13"
+    steps:
+      - install-project
+      - run:
+          name: Run unit tests (skip live API smoke tests)
+          command: uv run pytest tests -v -m "not smoke"
+
+workflows:
+  version: 2
+  ci:
+    jobs:
+      - lint
+      - type-check
+      - test

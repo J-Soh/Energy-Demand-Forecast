@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: Energy Forecast
+    runtime: python
+    plan: free
+    buildCommand: pip install uv && uv sync
+    startCommand: uv run streamlit run src/streamlit_app.py --server.port $PORT
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.13.5
