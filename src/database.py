@@ -170,10 +170,11 @@ def save_artifacts_to_supabase(result: dict[str, Any]) -> None:
         except Exception as e:
             logger.warning("Failed to upload model pickle to storage: %s", e)
 
+    as_of_date = result.get("date")
     row = {
         "id": str(uuid.uuid4()),
         "created_at": datetime.now().isoformat(),
-        "as_of_date": result.get("date").isoformat() if result.get("date") else None,
+        "as_of_date": as_of_date.isoformat() if as_of_date else None,
         "best_model": metrics.get("best_model"),
         "best_mae": metrics.get("best_mae"),
         "mae_prophet": metrics.get("mae_prophet"),
