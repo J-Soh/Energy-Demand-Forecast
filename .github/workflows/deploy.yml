@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
@@ -23,10 +23,3 @@ jobs:
         run: |
           docker build -t energyforecastacr.azurecr.io/demand-forecast-app:latest .
           docker push energyforecastacr.azurecr.io/demand-forecast-app:latest
-
-      - name: Deploy to App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-          app-name: ${{ vars.AZURE_APP_SERVICE_NAME }}
-          images: energyforecastacr.azurecr.io/demand-forecast-app:latest
