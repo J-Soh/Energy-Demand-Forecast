@@ -7,7 +7,7 @@ Live preview: [App](Add link here)
 
 - All model initial evaluation results can be found in `tools > Data Analysis and Model training.ipynb`
 
-**How It Works in This Project:**
+**How It Works in this Project:**
 
 - Input: 30-min interval energy data (demand, solar generation, uniform energy price) from Singapore NEMS API.
 - Models:
