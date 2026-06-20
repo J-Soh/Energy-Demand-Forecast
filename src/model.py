@@ -119,7 +119,7 @@ def train_lightgbm(data: pd.DataFrame, data_dict: dict, best_params: dict | None
     predictions = forecaster.predict(steps=len(data_dict["y_test"]), exog=data_dict["X_test"])
 
     importance = forecaster.get_feature_importances()
-    return predictions.values, importance
+    return predictions.values, importance, forecaster
 
 
 def train_extratrees(data: pd.DataFrame, data_dict: dict, best_params: dict | None = None):
@@ -155,7 +155,7 @@ def train_extratrees(data: pd.DataFrame, data_dict: dict, best_params: dict | No
     forecaster.fit(y=data_dict["y_train"], exog=data_dict["X_train"])
 
     predictions = forecaster.predict(steps=len(data_dict["y_test"]), exog=data_dict["X_test"])
-    return predictions.values, None
+    return predictions.values, None, forecaster
 
 
 def tune_lightgbm(X_train, y_train):

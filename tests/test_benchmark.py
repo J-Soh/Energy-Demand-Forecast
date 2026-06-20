@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.benchmark import compare_all_models, compute_baselines, compute_peak_mae
+from src.benchmark import compare_all_models, compute_baselines
 
 
 @pytest.fixture
@@ -54,33 +54,6 @@ class TestComputeBaselines:
 
         assert (result["MAE"] >= 0).all()
         assert (result["RMSE"] >= 0).all()
-
-
-class TestComputePeakMAE:
-    def test_returns_float(self):
-        y_test = pd.Series(np.arange(100, dtype=float))
-        preds = pd.Series(np.arange(100, dtype=float) + np.random.normal(0, 2, 100))
-
-        result = compute_peak_mae(y_test, preds)
-
-        assert isinstance(result, float)
-        assert result >= 0
-
-    def test_peak_mae_not_zero_when_errors_exist(self):
-        y_test = pd.Series(np.array([50, 60, 70, 80, 90, 100], dtype=float))
-        preds = pd.Series(np.array([50, 60, 70, 80, 90, 200], dtype=float))
-
-        result = compute_peak_mae(y_test, preds, percentile=0.5)
-
-        assert result > 0
-
-    def test_zero_when_all_perfect(self):
-        y_test = pd.Series(np.arange(100, dtype=float))
-        preds = y_test.copy()
-
-        result = compute_peak_mae(y_test, preds)
-
-        assert result == 0.0
 
 
 class TestCompareAllModels:

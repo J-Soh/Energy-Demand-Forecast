@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import uuid
 from datetime import datetime
 from typing import Any
 
+import pandas as pd
 from supabase import Client, create_client
 
-from src.settings import SUPABASE_TABLE_NAME
+from src.settings import SUPABASE_ARTIFACTS_TABLE, SUPABASE_RAW_TABLE, SUPABASE_TABLE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -93,3 +95,93 @@ def save_results_to_supabase(result: dict[str, Any]) -> None:
     logger.info("Upserting %d rows into Supabase...", len(rows))
     supabase.table(SUPABASE_TABLE_NAME).upsert(rows, on_conflict="as_of_date,timestamp").execute()
     logger.info("Successfully saved %d forecast records to Supabase", len(rows))
+
+
+def read_raw_data_from_supabase() -> pd.DataFrame:
+    """
+    Read all historical raw data from the energy_raw table.
+
+    Returns:
+        DataFrame with columns: [timestamp, demand, solar, usep].
+        Returns empty DataFrame if table is empty or error occurs.
+    """
+    try:
+        supabase = get_supabase_client()
+        response = (
+            supabase.table(SUPABASE_RAW_TABLE)
+            .select("timestamp,demand,solar,usep")
+            .order("timestamp")
+            .range(0, 10000)
+            .execute()
+        )
+        if not response.data:
+            logger.info("No raw data found in Supabase.")
+            return pd.DataFrame()
+        df = pd.DataFrame(response.data)
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        logger.info("Loaded %d rows from energy_raw", len(df))
+        return df
+    except Exception as e:
+        logger.warning("Failed to read raw data from Supabase: %s", e)
+        return pd.DataFrame()
+
+
+def save_raw_data_to_supabase(df: pd.DataFrame) -> None:
+    """
+    Save today's raw API data (timestamp, demand, solar, usep) to energy_raw.
+
+    Args:
+        df: DataFrame with columns [timestamp, demand, solar, usep].
+    """
+    supabase = get_supabase_client()
+    rows = df[["timestamp", "demand", "solar", "usep"]].copy()
+    rows["timestamp"] = rows["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%S")
+
+    records = rows.to_dict(orient="records")
+    logger.info("Saving %d raw rows to energy_raw...", len(records))
+    supabase.table(SUPABASE_RAW_TABLE).upsert(records, on_conflict="timestamp").execute()
+    logger.info("Raw data saved to energy_raw.")
+
+
+def save_artifacts_to_supabase(result: dict[str, Any]) -> None:
+    """
+    Save model evaluation artifacts (best model, metrics, feature importance)
+    and upload the trained model as a .pkl file to Supabase Storage.
+
+    Args:
+        result: Dict from run_forecast() containing metrics and feature_importance.
+    """
+    supabase = get_supabase_client()
+    metrics = result.get("metrics", {})
+    model_pickle_b64 = result.get("model_pickle")
+
+    model_pickle_url = None
+    if model_pickle_b64:
+        try:
+            pickle_bytes = base64.b64decode(model_pickle_b64)
+            filename = f"model_{result['date']}.pkl"
+            supabase.storage.from_("models").upload(
+                filename,
+                pickle_bytes,
+                {"content-type": "application/octet-stream", "upsert": "true"},
+            )
+            model_pickle_url = supabase.storage.from_("models").get_public_url(filename)
+            logger.info("Model pickle uploaded to storage: %s", model_pickle_url)
+        except Exception as e:
+            logger.warning("Failed to upload model pickle to storage: %s", e)
+
+    row = {
+        "id": str(uuid.uuid4()),
+        "created_at": datetime.now().isoformat(),
+        "as_of_date": result.get("date").isoformat() if result.get("date") else None,
+        "best_model": metrics.get("best_model"),
+        "best_mae": metrics.get("best_mae"),
+        "mae_prophet": metrics.get("mae_prophet"),
+        "mae_lightgbm": metrics.get("mae_lightgbm"),
+        "mae_extratrees": metrics.get("mae_extratrees"),
+        "mae_last_value": metrics.get("mae_last_value"),
+        "model_pickle_url": model_pickle_url,
+    }
+
+    supabase.table(SUPABASE_ARTIFACTS_TABLE).upsert(row, on_conflict="as_of_date").execute()
+    logger.info("Artifacts saved to energy_artifacts for %s", row["as_of_date"])

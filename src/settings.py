@@ -4,6 +4,8 @@ YESTR_DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 END_DATE = datetime.now().strftime("%Y-%m-%d")
 
 SUPABASE_TABLE_NAME = "energy_forecast"
+SUPABASE_RAW_TABLE = "energy_raw"
+SUPABASE_ARTIFACTS_TABLE = "energy_artifacts"
 
 FEATURE_COLS = [
     "solar",

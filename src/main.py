@@ -2,7 +2,9 @@ from __future__ import (
     annotations,  # For type hints pointing to classes defined LATER in the same file.
 )
 
+import base64
 import logging
+import pickle
 import sys
 from typing import Any  # allow any type (int, char etc) to by-pass
 
@@ -11,8 +13,13 @@ import pandas as pd
 from dotenv import load_dotenv
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-from src.benchmark import compare_all_models, compute_baselines, compute_peak_mae
-from src.database import save_results_to_supabase
+from src.benchmark import compare_all_models, compute_baselines
+from src.database import (
+    read_raw_data_from_supabase,
+    save_artifacts_to_supabase,
+    save_raw_data_to_supabase,
+    save_results_to_supabase,
+)
 from src.extractor import extract_data
 from src.model import forecast_prophet, train_extratrees, train_lightgbm
 from src.processor import prepare_data
@@ -27,12 +34,15 @@ def run_forecast() -> dict[str, Any]:
     Run the full energy demand forecasting pipeline.
 
     Steps:
-        1. Extract yesterday's energy data from Singapore NEMS API.
-        2. Engineer time-series features (calendar, lags, rolling stats).
-        3. Compute baseline models.
-        4. Forecast with Prophet (Singapore holidays + solar/usep regressors).
-        5. Forecast with LightGBM and ExtraTrees (skforecast recursive).
-        6. Compare all models and select the best by MAE.
+        1. Read historical raw data from Supabase (energy_raw).
+        2. Extract yesterday's energy data from Singapore NEMS API.
+        3. Save new raw data to Supabase for future runs.
+        4. Combine historical + new data.
+        5. Engineer time-series features (calendar, lags, rolling stats).
+        6. Compute baseline models.
+        7. Forecast with Prophet (Singapore holidays + solar/usep regressors).
+        8. Forecast with LightGBM and ExtraTrees (skforecast recursive).
+        9. Compare all models and select the best by MAE.
 
     Returns:
         - Dict containing predictions, baselines, metrics, and feature importance
@@ -42,15 +52,33 @@ def run_forecast() -> dict[str, Any]:
     as_of_date = pd.to_datetime(END_DATE).date()
     logger.info("Starting energy demand forecast as of %s", as_of_date)
 
-    # 1. Extract Singapore NEMS data API
-    logger.info("Extracting energy demand data...")
-    df = extract_data(YESTR_DATE)
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    if df.empty:
+    # 1. Read historical raw data from Supabase
+    logger.info("Reading historical raw data from Supabase...")
+    df_hist = read_raw_data_from_supabase()
+    if not df_hist.empty:
+        df_hist["timestamp"] = pd.to_datetime(df_hist["timestamp"]).dt.tz_localize(None)
+    logger.info("Loaded %d historical rows", len(df_hist))
+
+    # 2. Extract yesterday's data from NEMS API
+    logger.info("Extracting energy demand data from NEMS API...")
+    df_new = extract_data(YESTR_DATE)
+    df_new["timestamp"] = pd.to_datetime(df_new["timestamp"])
+    if df_new.empty:
         logger.warning("No data extracted. Exiting.")
         return {}
 
-    # 2. Feature Engineering
+    # 3. Save new raw data to Supabase for future runs
+    logger.info("Saving new raw data to Supabase...")
+    save_raw_data_to_supabase(df_new)
+
+    # 4. Combine historical + new
+    df = pd.concat([df_hist, df_new], ignore_index=True)
+    df = df.drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+    if df.empty:
+        logger.warning("No data available after combining. Exiting.")
+        return {}
+
+    # 5. Feature Engineering
     logger.info("Engineering features...")
     data_dict = prepare_data(df)
     y_test = data_dict["y_test"]
@@ -67,9 +95,9 @@ def run_forecast() -> dict[str, Any]:
 
     # 5. Get LightBGM & ExtraTrees models
     logger.info("Training LightGBM...")
-    lgbm_preds, importance = train_lightgbm(data_dict["df"], data_dict)
+    lgbm_preds, importance, lgbm_model = train_lightgbm(data_dict["df"], data_dict)
     logger.info("Training ExtraTrees...")
-    et_preds, _ = train_extratrees(data_dict["df"], data_dict)
+    et_preds, _, _ = train_extratrees(data_dict["df"], data_dict)
 
     # 6. Benchmark
     predictions = {
@@ -87,9 +115,6 @@ def run_forecast() -> dict[str, Any]:
     best_row = comparison.iloc[0]
     metrics["best_model"] = best_row["Model"]
     metrics["best_mae"] = best_row["MAE"]
-
-    peak_mae = compute_peak_mae(y_test, lgbm_preds)
-    logger.info("Peak demand (top 5%%) MAE: %.4f", peak_mae)
 
     # 7. Logger results
     logger.info("Energy Demand Forecast Results")
@@ -126,6 +151,8 @@ def run_forecast() -> dict[str, Any]:
         if col:
             baseline_preds[row["Model"]] = data_dict["test"][col].values[: len(lgbm_preds)]
 
+    model_pickle = base64.b64encode(pickle.dumps(lgbm_model)).decode("utf-8")
+
     return {
         "date": as_of_date,
         "predictions": predictions,
@@ -138,6 +165,7 @@ def run_forecast() -> dict[str, Any]:
         "metrics": metrics,
         "comparison": comparison,
         "feature_importance": importance,
+        "model_pickle": model_pickle,
     }
 
 
@@ -154,6 +182,9 @@ def main() -> None:
         try:  # save result to Supabase
             save_results_to_supabase(result)
             print("Results successfully saved to Supabase")
+
+            save_artifacts_to_supabase(result)
+            print("Artifacts saved to Supabase")
 
         except Exception as f:
             logger.error("Failed to save to Supabase: %s", f)

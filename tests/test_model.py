@@ -90,11 +90,12 @@ class TestTrainLightGBM:
         mock_importance = pd.DataFrame({"feature": ["lag_1"], "importance": [0.5]})
         mock_forecaster.get_feature_importances.return_value = mock_importance
 
-        preds, importance = train_lightgbm(sample_data_dict["df"], sample_data_dict)
+        preds, importance, forecaster = train_lightgbm(sample_data_dict["df"], sample_data_dict)
 
         assert isinstance(preds, np.ndarray)
         assert len(preds) == n_test
         assert importance is not None
+        assert forecaster is mock_forecaster
         mock_lgbm_cls.assert_called_once()
         mock_forecaster.fit.assert_called_once()
         mock_forecaster.predict.assert_called_once()
@@ -135,11 +136,12 @@ class TestTrainExtraTrees:
         mock_predictions.values = np.arange(n_test, dtype=float)
         mock_forecaster.predict.return_value = mock_predictions
 
-        preds, importance = train_extratrees(sample_data_dict["df"], sample_data_dict)
+        preds, importance, forecaster = train_extratrees(sample_data_dict["df"], sample_data_dict)
 
         assert isinstance(preds, np.ndarray)
         assert len(preds) == n_test
         assert importance is None
+        assert forecaster is mock_forecaster
         mock_et_cls.assert_called_once()
         mock_forecaster.fit.assert_called_once()
         mock_forecaster.predict.assert_called_once()

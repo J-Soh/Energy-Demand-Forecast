@@ -45,25 +45,6 @@ def compute_baselines(data: pd.DataFrame, y_test: pd.Series) -> pd.DataFrame:
     return results_df
 
 
-def compute_peak_mae(y_test: pd.Series, predictions: pd.Series, percentile: float = 0.95) -> float:
-    """
-    Compute MAE for the top percentile of demand periods.
-
-    Args:
-        y_test: Actual demand values.
-        predictions: Predicted demand values (aligned with y_test).
-        percentile: Threshold percentile (default 0.95 → top 5 %).
-
-    Returns:
-        MAE score restricted to peak-demand periods.
-    """
-    threshold = y_test.quantile(percentile)
-    peak_mask = y_test >= threshold
-    if peak_mask.sum() == 0:
-        return 0.0
-    return float(np.mean(np.abs(y_test[peak_mask] - predictions[peak_mask])))
-
-
 def compare_all_models(
     y_test: pd.Series,
     predictions: dict[str, np.ndarray],

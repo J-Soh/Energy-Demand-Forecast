@@ -3,7 +3,7 @@
 ## Project Overview
 This project forecasts Singapore's electrical energy demand by combining Meta's Prophet time-series forecasting with skforecast (LightGBM + ExtraTrees) and rigorous model benchmarking against baseline models. The system pulls live market data from the Singapore NEMS API, engineers time-series features, predicts future demand, and automatically selects the best-performing model based on Mean Absolute Error (MAE).
 
-Live preview: [App](Add link here)
+Live preview: [App](https://energy-forecaster-app-auauerb0gugkg5af.southeastasia-01.azurewebsites.net/)
 
 - All model initial evaluation results can be found in `tools > Data Analysis and Model training.ipynb`
 
