@@ -61,7 +61,9 @@ def run_forecast() -> dict[str, Any]:
 
     # 4. Get Prophet model
     logger.info("Running Prophet forecast...")
-    prophet_preds, prophet_actuals, prophet_df = forecast_prophet(data_dict["df"], int(len(data_dict["df"]) * 0.8))
+    prophet_preds, prophet_actuals, prophet_df = forecast_prophet(
+        data_dict["df"], int(len(data_dict["df"]) * 0.8)
+    )
 
     # 5. Get LightBGM & ExtraTrees models
     logger.info("Training LightGBM...")
@@ -93,18 +95,24 @@ def run_forecast() -> dict[str, Any]:
     logger.info("Energy Demand Forecast Results")
     logger.info("Date: %s", as_of_date)
     logger.info("Best Model: %s (MAE: %.4f)", metrics["best_model"], metrics["best_mae"])
-    logger.info("Prophet MAE: %.4f, RMSE: %.4f",
-                mean_absolute_error(y_test, prophet_preds),
-                np.sqrt(mean_squared_error(y_test, prophet_preds)))
-    logger.info("LightGBM MAE: %.4f, RMSE: %.4f",
-                mean_absolute_error(y_test, lgbm_preds),
-                np.sqrt(mean_squared_error(y_test, lgbm_preds)))
-    logger.info("ExtraTrees MAE: %.4f, RMSE: %.4f",
-                mean_absolute_error(y_test, et_preds),
-                np.sqrt(mean_squared_error(y_test, et_preds)))
+    logger.info(
+        "Prophet MAE: %.4f, RMSE: %.4f",
+        mean_absolute_error(y_test, prophet_preds),
+        np.sqrt(mean_squared_error(y_test, prophet_preds)),
+    )
+    logger.info(
+        "LightGBM MAE: %.4f, RMSE: %.4f",
+        mean_absolute_error(y_test, lgbm_preds),
+        np.sqrt(mean_squared_error(y_test, lgbm_preds)),
+    )
+    logger.info(
+        "ExtraTrees MAE: %.4f, RMSE: %.4f",
+        mean_absolute_error(y_test, et_preds),
+        np.sqrt(mean_squared_error(y_test, et_preds)),
+    )
 
     test_index = data_dict["test"].index
-    timestamps = test_index[:len(lgbm_preds)]
+    timestamps = test_index[: len(lgbm_preds)]
 
     baseline_preds = {}
     for _, row in baselines_df.iterrows():
@@ -116,7 +124,7 @@ def run_forecast() -> dict[str, Any]:
         }
         col = col_map.get(row["Model"])
         if col:
-            baseline_preds[row["Model"]] = data_dict["test"][col].values[:len(lgbm_preds)]
+            baseline_preds[row["Model"]] = data_dict["test"][col].values[: len(lgbm_preds)]
 
     return {
         "date": as_of_date,
@@ -125,16 +133,17 @@ def run_forecast() -> dict[str, Any]:
         "prophet_predictions": prophet_preds,
         "lightgbm_predictions": lgbm_preds,
         "extratrees_predictions": et_preds,
-        "actuals": y_test.values[:len(lgbm_preds)],
+        "actuals": y_test.values[: len(lgbm_preds)],
         "timestamps": timestamps,
         "metrics": metrics,
         "comparison": comparison,
         "feature_importance": importance,
     }
 
+
 def main() -> None:
     """Primary CLI entry point — saves forecast results to Supabase."""
-    load_dotenv() # Retrive Supabase KEY
+    load_dotenv()  # Retrive Supabase KEY
 
     try:
         result = run_forecast()
@@ -142,7 +151,7 @@ def main() -> None:
             logger.error("Forecast returned empty result")
             sys.exit(1)
 
-        try: # save result to Supabase
+        try:  # save result to Supabase
             save_results_to_supabase(result)
             print("Results successfully saved to Supabase")
 
@@ -155,6 +164,7 @@ def main() -> None:
         logger.error("Error during forecast: %s", e)
         print("Error during forecast: %s", e, file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

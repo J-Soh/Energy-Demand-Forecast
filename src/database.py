@@ -71,12 +71,16 @@ def save_results_to_supabase(result: dict[str, Any]) -> None:
             "id": str(uuid.uuid4()),
             "created_at": datetime.now().isoformat(),
             "as_of_date": as_of_date.isoformat() if as_of_date else None,
-            "timestamp": timestamps[i].isoformat() if hasattr(timestamps[i], "isoformat") else str(timestamps[i]),
+            "timestamp": timestamps[i].isoformat()
+            if hasattr(timestamps[i], "isoformat")
+            else str(timestamps[i]),
             "actual_demand": float(actuals[i]) if actuals is not None else None,
             "prophet_prediction": float(prophet_preds[i]) if prophet_preds is not None else None,
             "lightgbm_prediction": float(lgbm_preds[i]) if lgbm_preds is not None else None,
             "extratrees_prediction": float(et_preds[i]) if et_preds is not None else None,
-            "last_value_prediction": float(last_value_arr[i]) if last_value_arr is not None else None,
+            "last_value_prediction": float(last_value_arr[i])
+            if last_value_arr is not None
+            else None,
             "yesterday_prediction": float(yesterday_arr[i]) if yesterday_arr is not None else None,
             "best_model": metrics.get("best_model"),
             "mae_prophet": metrics.get("mae_prophet"),

@@ -123,11 +123,17 @@ def demand_trend_chart(df: pd.DataFrame) -> alt.Chart | None:
         d = row["timestamp"]
         records.append({"timestamp": d, "series": "Actual", "demand": row.get("actual_demand")})
         if pd.notna(row.get("prophet_prediction")):
-            records.append({"timestamp": d, "series": "Prophet", "demand": row["prophet_prediction"]})
+            records.append(
+                {"timestamp": d, "series": "Prophet", "demand": row["prophet_prediction"]}
+            )
         if pd.notna(row.get("lightgbm_prediction")):
-            records.append({"timestamp": d, "series": "LightGBM", "demand": row["lightgbm_prediction"]})
+            records.append(
+                {"timestamp": d, "series": "LightGBM", "demand": row["lightgbm_prediction"]}
+            )
         if pd.notna(row.get("extratrees_prediction")):
-            records.append({"timestamp": d, "series": "ExtraTrees", "demand": row["extratrees_prediction"]})
+            records.append(
+                {"timestamp": d, "series": "ExtraTrees", "demand": row["extratrees_prediction"]}
+            )
     long_df = pd.DataFrame(records).dropna(subset=["demand"])
     if long_df.empty:
         return None
@@ -138,14 +144,32 @@ def demand_trend_chart(df: pd.DataFrame) -> alt.Chart | None:
         alt.Chart(long_df)
         .mark_line(point=alt.OverlayMarkDef(size=30, filled=True), strokeWidth=2)
         .encode(
-            x=alt.X("timestamp:T", title=None,
-                    axis=alt.Axis(labelColor=COLORS["text_secondary"], gridColor=COLORS["border"],
-                                  domainColor=COLORS["border"], format="%b %d")),
-            y=alt.Y("demand:Q", title="Demand (MW)",
-                    axis=alt.Axis(labelColor=COLORS["text_secondary"], titleColor=COLORS["text_secondary"],
-                                  gridColor=COLORS["border"], domainColor=COLORS["border"])),
-            color=alt.Color("series:N", title=None, scale=alt.Scale(domain=domain, range=range_colors),
-                            legend=alt.Legend(labelColor=COLORS["text_secondary"], orient="top")),
+            x=alt.X(
+                "timestamp:T",
+                title=None,
+                axis=alt.Axis(
+                    labelColor=COLORS["text_secondary"],
+                    gridColor=COLORS["border"],
+                    domainColor=COLORS["border"],
+                    format="%b %d",
+                ),
+            ),
+            y=alt.Y(
+                "demand:Q",
+                title="Demand (MW)",
+                axis=alt.Axis(
+                    labelColor=COLORS["text_secondary"],
+                    titleColor=COLORS["text_secondary"],
+                    gridColor=COLORS["border"],
+                    domainColor=COLORS["border"],
+                ),
+            ),
+            color=alt.Color(
+                "series:N",
+                title=None,
+                scale=alt.Scale(domain=domain, range=range_colors),
+                legend=alt.Legend(labelColor=COLORS["text_secondary"], orient="top"),
+            ),
             tooltip=[
                 alt.Tooltip("timestamp:T", title="Time", format="%Y-%m-%d %H:%M"),
                 alt.Tooltip("series:N", title="Series"),
@@ -181,13 +205,30 @@ def model_mae_bar(date_df: pd.DataFrame) -> alt.Chart | None:
         alt.Chart(chart_df)
         .mark_bar(cornerRadiusEnd=4)
         .encode(
-            x=alt.X("MAE:Q", title="Mean Absolute Error",
-                    axis=alt.Axis(labelColor=COLORS["text_secondary"], titleColor=COLORS["text_secondary"],
-                                  gridColor=COLORS["border"], domainColor=COLORS["border"], format=".1f")),
-            y=alt.Y("Model:N", title=None, sort=alt.EncodingSortField(field="MAE", order="ascending"),
-                    axis=alt.Axis(labelColor=COLORS["text_primary"], domainColor=COLORS["border"])),
-            color=alt.condition(alt.datum.is_best, alt.value(COLORS["positive"]), alt.value(COLORS["accent_dim"])),
-            tooltip=[alt.Tooltip("Model:N", title="Model"), alt.Tooltip("MAE:Q", title="MAE", format=".2f")],
+            x=alt.X(
+                "MAE:Q",
+                title="Mean Absolute Error",
+                axis=alt.Axis(
+                    labelColor=COLORS["text_secondary"],
+                    titleColor=COLORS["text_secondary"],
+                    gridColor=COLORS["border"],
+                    domainColor=COLORS["border"],
+                    format=".1f",
+                ),
+            ),
+            y=alt.Y(
+                "Model:N",
+                title=None,
+                sort=alt.EncodingSortField(field="MAE", order="ascending"),
+                axis=alt.Axis(labelColor=COLORS["text_primary"], domainColor=COLORS["border"]),
+            ),
+            color=alt.condition(
+                alt.datum.is_best, alt.value(COLORS["positive"]), alt.value(COLORS["accent_dim"])
+            ),
+            tooltip=[
+                alt.Tooltip("Model:N", title="Model"),
+                alt.Tooltip("MAE:Q", title="MAE", format=".2f"),
+            ],
         )
         .configure(background="transparent")
         .configure_view(strokeWidth=0)
@@ -206,14 +247,17 @@ def run_dashboard() -> None:
         return
 
     with st.sidebar:
-        st.markdown(f"<p style='color:{COLORS['accent']};font-weight:600;font-size:1.1rem;"
-                    f"letter-spacing:-0.01em;margin-bottom:0.25rem;'>Energy Demand Forecast</p>",
-                    unsafe_allow_html=True)
+        st.markdown(
+            f"<p style='color:{COLORS['accent']};font-weight:600;font-size:1.1rem;"
+            f"letter-spacing:-0.01em;margin-bottom:0.25rem;'>Energy Demand Forecast</p>",
+            unsafe_allow_html=True,
+        )
         st.caption("Short-term electricity demand forecasting")
         st.markdown("---")
         available_dates = sorted(df["as_of_date"].unique(), reverse=True)
-        selected_date = st.selectbox("AS-OF DATE", options=available_dates,
-                                     format_func=lambda d: d.strftime("%Y-%m-%d"))
+        selected_date = st.selectbox(
+            "AS-OF DATE", options=available_dates, format_func=lambda d: d.strftime("%Y-%m-%d")
+        )
         date_df = df[df["as_of_date"] == selected_date].copy().sort_values("timestamp")
         st.markdown("---")
         st.caption(f"Tracking {len(date_df)} time points. Data refreshes every 5 minutes.")
@@ -225,7 +269,9 @@ def run_dashboard() -> None:
         m1, m2, m3, m4 = st.columns(4)
         with m1:
             actuals = date_df["actual_demand"].dropna()
-            st.metric("Avg Actual Demand", f"{actuals.mean():.0f} MW" if not actuals.empty else "N/A")
+            st.metric(
+                "Avg Actual Demand", f"{actuals.mean():.0f} MW" if not actuals.empty else "N/A"
+            )
         with m2:
             st.metric("Data Points", str(len(date_df)))
         with m3:
@@ -254,7 +300,13 @@ def run_dashboard() -> None:
     st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
     st.subheader("Forecast Data")
     if not date_df.empty:
-        cols_to_show = ["timestamp", "actual_demand", "prophet_prediction", "lightgbm_prediction", "extratrees_prediction"]
+        cols_to_show = [
+            "timestamp",
+            "actual_demand",
+            "prophet_prediction",
+            "lightgbm_prediction",
+            "extratrees_prediction",
+        ]
         available = [c for c in cols_to_show if c in date_df.columns]
         display = date_df[available].copy()
         display.columns = [c.replace("_", " ").title() for c in display.columns]

@@ -1,0 +1,31 @@
+name: Build & Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker Login to ACR
+        uses: azure/docker-login@v2
+        with:
+          login-server: energyforecastacr.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build & Push to ACR
+        run: |
+          docker build -t energyforecastacr.azurecr.io/demand-forecast-app:latest .
+          docker push energyforecastacr.azurecr.io/demand-forecast-app:latest
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_APP_SERVICE_NAME }}
+          images: energyforecastacr.azurecr.io/demand-forecast-app:latest

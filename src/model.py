@@ -32,16 +32,20 @@ def get_singapore_holidays(start_year: int, end_year: int) -> pd.DataFrame:
     rows = []
     for day, name in sg.items():
         clean_name = str(name).replace("'", "").replace(",", "").replace(" ", "_").lower()
-        rows.append({
-            "holiday": clean_name,
-            "ds": pd.Timestamp(day),
-            "lower_window": -1,
-            "upper_window": 1,
-        })
+        rows.append(
+            {
+                "holiday": clean_name,
+                "ds": pd.Timestamp(day),
+                "lower_window": -1,
+                "upper_window": 1,
+            }
+        )
     return pd.DataFrame(rows)
 
 
-def forecast_prophet(data: pd.DataFrame, split_idx: int) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
+def forecast_prophet(
+    data: pd.DataFrame, split_idx: int
+) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
     """
     Train Prophet with Singapore holidays and solar / usep regressors.
 
@@ -96,13 +100,17 @@ def train_lightgbm(data: pd.DataFrame, data_dict: dict, best_params: dict | None
     from lightgbm import LGBMRegressor
     from skforecast.recursive import ForecasterRecursive
 
-    params = best_params if best_params else {
-        "n_estimators": 100,
-        "learning_rate": 0.1,
-        "max_depth": 5,
-        "random_state": 42,
-        "verbose": -1,
-    }
+    params = (
+        best_params
+        if best_params
+        else {
+            "n_estimators": 100,
+            "learning_rate": 0.1,
+            "max_depth": 5,
+            "random_state": 42,
+            "verbose": -1,
+        }
+    )
 
     regressor = LGBMRegressor(**params)
     forecaster = ForecasterRecursive(regressor, lags=SKFORECAST_LAGS)
@@ -131,12 +139,16 @@ def train_extratrees(data: pd.DataFrame, data_dict: dict, best_params: dict | No
     from skforecast.recursive import ForecasterRecursive
     from sklearn.ensemble import ExtraTreesRegressor
 
-    params = best_params if best_params else {
-        "n_estimators": 200,
-        "max_depth": 10,
-        "random_state": 42,
-        "n_jobs": -1,
-    }
+    params = (
+        best_params
+        if best_params
+        else {
+            "n_estimators": 200,
+            "max_depth": 10,
+            "random_state": 42,
+            "n_jobs": -1,
+        }
+    )
 
     regressor = ExtraTreesRegressor(**params)
     forecaster = ForecasterRecursive(regressor, lags=SKFORECAST_LAGS)

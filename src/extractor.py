@@ -30,33 +30,20 @@ def _process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     df["start_time"] = df["Period"].str.split("-").str[0]
 
-    df["timestamp"] = pd.to_datetime(
-    df["Date"].dt.strftime("%Y-%m-%d") + " " + df["start_time"])
+    df["timestamp"] = pd.to_datetime(df["Date"].dt.strftime("%Y-%m-%d") + " " + df["start_time"])
 
     df = df.sort_values("timestamp").reset_index(drop=True)
 
-    df = df[[
-        "timestamp",
-        "Demand (MW)",
-        "Solar (MW)",
-        "USEP ($/MWh)"
-    ]].copy()
+    df = df[["timestamp", "Demand (MW)", "Solar (MW)", "USEP ($/MWh)"]].copy()
 
-    df.columns = [
-        "timestamp",
-        "demand",
-        "solar",
-        "usep"
-        ]
+    df.columns = ["timestamp", "demand", "solar", "usep"]
 
     df = df.dropna()
 
     return df
 
 
-def _download_data(
-    target_date: str
-) -> pd.DataFrame:
+def _download_data(target_date: str) -> pd.DataFrame:
     """
     Download data from Singapore NEMS.
 
@@ -87,7 +74,7 @@ def _download_data(
 
         # Convert raw text string directly into a Pandas Dataframe
         df = pd.read_csv(StringIO(response.text))
-        print("Data downloaded successfully!")
+        print("NEMS Data downloaded successfully.")
         return df
     else:
         print(f"Request failed with status code: {response.status_code}")

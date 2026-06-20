@@ -1,7 +1,7 @@
-# Singapore Energy Demand Forecasting & Model Benchmarking
+# Singapore Energy Demand Forecasting with ML Pipeline and Azure Deployment
 
 ## Project Overview
-This project forecasts Singapore's electrical energy demand by combining Meta's Prophet time-series forecasting with skforecast (LightGBM + ExtraTrees) and rigorous model benchmarking against baseline models. The system pulls live 30-min market data from the Singapore NEMS API, engineers time-series features, predicts future demand, and automatically selects the best-performing model based on Mean Absolute Error (MAE).
+This project forecasts Singapore's electrical energy demand by combining Meta's Prophet time-series forecasting with skforecast (LightGBM + ExtraTrees) and rigorous model benchmarking against baseline models. The system pulls live market data from the Singapore NEMS API, engineers time-series features, predicts future demand, and automatically selects the best-performing model based on Mean Absolute Error (MAE).
 
 Live preview: [App](Add link here)
 
@@ -20,85 +20,9 @@ Live preview: [App](Add link here)
 ---
 ## Mermaid Flowchart diagram
 
-```mermaid
-flowchart TD
-    subgraph CI["CI Quality Gate (CircleCI)"]
-        direction LR
-        Lint["• Format & Lint"]
-        TypeCheck["• Type Check"]
-        Tests["• Unit/Integration Tests"]
-    end
-
-    subgraph Daily["1. Daily Pipeline (GitHub Actions)"]
-        direction TB
-        Cron["Daily Cron Trigger"]
-        Extract["extractor.py<br/>Collect Data from NEMS API"]
-    end
-
-    subgraph Prepare["2. Prepare Data"]
-        direction TB
-        Processor["processor.py<br/>Preprocess Data"]
-        Features["feature_eng.py<br/>Engineer Features"]
-    end
-
-    subgraph Train["3. Train & Predict Models"]
-        direction TB
-        Model["model.py & benchmark.py<br/>Prophet + skforecast"]
-    end
-
-    subgraph Host["4. Containerize & Deploy"]
-        direction TB
-        Docker["Docker Image"]
-        ACR["Azure Container Registry"]
-        K8s["Kubernetes Orchestration"]
-        Azure["Azure App Service (F1)"]
-        Streamlit["streamlit_app.py<br/>Streamlit Frontend"]
-        Docker --> ACR --> K8s --> Azure --> Streamlit
-    end
-
-    subgraph Monitor["5. Performance Monitor"]
-        direction TB
-        GA["Daily GitHub Action"]
-        Validation["Validation Check"]
-        Alarm["Alarm Trigger<br/>(Upon Workflow Failure)"]
-    end
-
-    subgraph Storage["Data & Artifact Storage"]
-        Supabase["Supabase Database<br/>Online + Offline Store"]
-        GitArtifacts["Model Artifact Storage<br/>(Git / Supabase Storage)"]
-        Lineage["Lineage Tracker<br/>(Git Version Control)"]
-    end
-
-    CodePush["Code Push / PR"] --> CI
-    CI -->|"Gates Deployment"| Daily
-    CI -->|"Protects Production Scripts"| Lineage
-
-    Daily --> Cron
-    Cron --> Extract
-    Extract -->|"1. Write Clean Features"| Supabase
-    Extract --> Prepare
-
-    Prepare --> Processor
-    Processor --> Features
-    Features -->|"2. Read Historical Features"| Supabase
-    Features --> Train
-
-    Train --> Model
-    Model -->|"3. Write Predicted Future Data"| Supabase
-    Model -->|"Save Weights"| GitArtifacts
-    Model --> Host
-
-    Host --> Streamlit
-    Streamlit -->|"Fetch Live Predictions"| Supabase
-    Streamlit --> Browser["User Browser"]
-
-    Supabase -->|"Read Forecasts vs Actuals"| Monitor
-    Monitor --> GA --> Validation --> Alarm
-    Alarm -->|"Trigger Re-Training Workflow<br/>(Performance Feedback)"| Daily
-```
+![alt text](Tools/EF.svg)
 
 - [Visual Flowchart](tools/EF.mp4) Preview
-- Mermaid source: `tools/flowchart.mmd`
 
 #### Prophet Model
 - A time-series forecasting library by Meta.
@@ -199,35 +123,56 @@ SUPABASE_KEY=your-service-role-key
 - `make type-check` — run mypy type checker
 - `make test` — run unit tests (skips live API smoke tests)
 - `make install` — install all dependencies
+- `make acr-build` — show Azure CLI commands for cloud build
 
 ---
 
 ## Deployment
 
-The Streamlit dashboard is containerized and deployed via Kubernetes on Azure App Service (F1).
+The Streamlit dashboard is containerized and deployed on Azure App Service (F1) using Azure Container Registry.
 
-### Docker Build
+Deploys are automated via GitHub Actions — every `git push` to `main` triggers `.github/workflows/deploy.yml` to build a new image in ACR and restart the App Service.
 
-1. Install [Docker Desktop ](https://docs.docker.com/desktop/setup/install/windows-install/)
+### CI/CD — Automatic Deploy on Push
 
-2. Enable Kubernetes via `settings > Kubernetes > Enable`
+The workflow in `.github/workflows/deploy.yml` runs on every push to `main`:
 
-2. Input the following commands:
+1. **Login** to Azure via service principal
+2. **Build & push** image using `az acr build` (no local Docker needed)
+3. **Restart** the App Service to pull the latest image
+
+**To enable this, configure these GitHub secrets/vars:**
+
+| Secret / Var | Value | How to get it |
+|---|---|---|
+| `AZURE_CREDENTIALS` | Service principal JSON | `az ad sp create-for-rbac --name "github-deploy" --role contributor --scopes /subscriptions/3cec7872-315a-4ffd-9fe4-40841e39d418/resourceGroups/energy-forecast-rg --sdk-auth` |
+| `AZURE_APP_SERVICE_NAME` (var) | Your App Service name | Name you chose when creating the App Service |
+
+### One-Time Azure Setup
+
 ```bash
-docker build -t energy-forecast:latest .
-docker tag energy-forecast:latest <your-registry>.azurecr.io/energy-forecast:latest
-docker push <your-registry>.azurecr.io/energy-forecast:latest
+# 1. Resource group + ACR (already done)
+az group create --name energy-forecast-rg --location southeastasia
+az acr create --resource-group energy-forecast-rg --name energyforecastacr --sku Basic --admin-enabled true
+
+# 2. Create App Service (Linux, F1 Free) in the Azure Portal
+#    - Publish: Docker Container
+#    - Region: Southeast Asia
+#    - SKU: Free F1
+#    - Image: energyforecastacr.azurecr.io/demand-forecast-app:latest
+#    - Startup command: uv run streamlit run src/streamlit_app.py --server.port 8000
+
+# 3. Set env vars in App Service → Settings → Environment variables:
+#    SUPABASE_URL, SUPABASE_KEY
 ```
 
-### Azure App Service (F1)
+### Manual Cloud Build (if needed)
 
-1. Create an Azure Container Registry (ACR) to store the Docker image.
-2. Create an Azure App Service (Linux, F1 Free tier) configured to pull from ACR.
-3. Set the startup command:
-   ```
-   uv run streamlit run src/streamlit_app.py --server.port 8000
-   ```
-4. Configure environment variables (`SUPABASE_URL`, `SUPABASE_KEY`) in App Settings.
+```bash
+# Azure Cloud Shell (no install needed)
+az acr build --registry energyforecastacr --image demand-forecast-app:latest .
+az webapp restart --name <your-app-name> --resource-group energy-forecast-rg
+```
 
 > **Note:** The F1 Free tier supports container deployments via ACR integration. For custom container support, upgrade to B1+.
 
