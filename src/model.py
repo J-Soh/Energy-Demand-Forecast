@@ -275,6 +275,44 @@ def retrain_and_forecast_lightgbm(
     return predictions.values
 
 
+def retrain_and_forecast_prophet(
+    df: pd.DataFrame, future_X: pd.DataFrame, n_steps: int = 48
+) -> np.ndarray:
+    """
+    Retrain Prophet on all data and predict n_steps ahead.
+
+    Args:
+        df: Feature-engineered DataFrame with all historical rows.
+        future_X: Future exogenous features (n_steps * FEATURE_COLS).
+        n_steps: Number of 30-min periods to forecast (default 48).
+
+    Returns:
+        Array of predicted demand values.
+    """
+    from prophet import Prophet
+
+    prophet_df = df.reset_index()
+    prophet_df = prophet_df.rename(columns={"timestamp": "ds", "demand": "y"})
+    prophet_df = prophet_df[["ds", "y", "solar", "usep"]]
+
+    holidays_df = get_singapore_holidays(
+        pd.to_datetime(prophet_df["ds"].min()).year,
+        pd.to_datetime(prophet_df["ds"].max()).year,
+    )
+    model = Prophet(
+        holidays=holidays_df if not holidays_df.empty else None,
+        **PROPHET_PARAMS,
+    )
+    model.add_regressor("solar")
+    model.add_regressor("usep")
+    model.fit(prophet_df)
+
+    future_timestamps = future_X.index
+    future = future_X.reset_index()[["solar", "usep"]]
+    future["ds"] = future_timestamps
+    return model.predict(future)["yhat"].values
+
+
 def retrain_and_forecast_extratrees(
     df: pd.DataFrame, future_X: pd.DataFrame, n_steps: int = 48
 ) -> np.ndarray:

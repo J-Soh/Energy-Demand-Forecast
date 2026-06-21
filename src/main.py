@@ -1,6 +1,5 @@
-from __future__ import (
-    annotations,  # For type hints pointing to classes defined LATER in the same file.
-)
+# For type hints pointing to classes defined LATER in the same file.
+from __future__ import annotations
 
 import base64
 import logging
@@ -11,7 +10,6 @@ from typing import Any  # allow any type (int, char etc) to by-pass
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from prophet import Prophet  # noqa: E402
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 from src.benchmark import compare_all_models, compute_baselines
@@ -25,14 +23,14 @@ from src.extractor import extract_data
 from src.feature_eng import engineer_future_features
 from src.model import (
     forecast_prophet,
-    get_singapore_holidays,
     retrain_and_forecast_extratrees,
     retrain_and_forecast_lightgbm,
+    retrain_and_forecast_prophet,
     train_extratrees,
     train_lightgbm,
 )
 from src.processor import prepare_data
-from src.settings import END_DATE, PROPHET_PARAMS, YESTR_DATE
+from src.settings import END_DATE, YESTR_DATE
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -92,23 +90,23 @@ def run_forecast() -> dict[str, Any]:
     data_dict = prepare_data(df)
     y_test = data_dict["y_test"]
 
-    # 3. Compute Baseline models
+    # 6. Compute Baseline models
     logger.info("Computing baseline models...")
     baselines_df = compute_baselines(data_dict["df"], y_test)
 
-    # 4. Get Prophet model
+    # 7. Get Prophet model
     logger.info("Running Prophet forecast...")
     prophet_preds, prophet_actuals, prophet_df = forecast_prophet(
         data_dict["df"], int(len(data_dict["df"]) * 0.8)
     )
 
-    # 5. Get LightBGM & ExtraTrees models
+    # 8. Get LightBGM & ExtraTrees models
     logger.info("Training LightGBM...")
     lgbm_preds, importance, lgbm_model = train_lightgbm(data_dict["df"], data_dict)
     logger.info("Training ExtraTrees...")
     et_preds, _, _ = train_extratrees(data_dict["df"], data_dict)
 
-    # 6. Benchmark
+    # 9. Benchmark against models
     predictions = {
         "Prophet": prophet_preds,
         "LightGBM": lgbm_preds,
@@ -125,7 +123,7 @@ def run_forecast() -> dict[str, Any]:
     metrics["best_model"] = best_row["Model"]
     metrics["best_mae"] = best_row["MAE"]
 
-    # 7. Logger results
+    # 10. Logger results
     logger.info("Energy Demand Forecast Results")
     logger.info("Date: %s", as_of_date)
     logger.info("Best Model: %s (MAE: %.4f)", metrics["best_model"], metrics["best_mae"])
@@ -160,7 +158,7 @@ def run_forecast() -> dict[str, Any]:
         if col:
             baseline_preds[row["Model"]] = data_dict["test"][col].values[: len(lgbm_preds)]
 
-    # 8. Forward forecast for next 24 hours
+    # 11. Forward forecast for next 24 hours
     logger.info("Generating forward forecast for next 24 hours...")
     future_X = engineer_future_features(data_dict["df"], n_steps=48)
     future_timestamps = future_X.index
@@ -171,25 +169,7 @@ def run_forecast() -> dict[str, Any]:
     elif best_name == "ExtraTrees":
         forward_preds = retrain_and_forecast_extratrees(data_dict["df"], future_X, n_steps=48)
     elif best_name == "Prophet":
-        prophet_df = data_dict["df"].reset_index()
-        prophet_df = prophet_df.rename(columns={"timestamp": "ds", "demand": "y"})
-        prophet_df = prophet_df[["ds", "y", "solar", "usep"]]
-
-        holidays_df = get_singapore_holidays(
-            pd.to_datetime(prophet_df["ds"].min()).year,
-            pd.to_datetime(prophet_df["ds"].max()).year,
-        )
-        model = Prophet(
-            holidays=holidays_df if not holidays_df.empty else None,
-            **PROPHET_PARAMS,
-        )
-        model.add_regressor("solar")
-        model.add_regressor("usep")
-        model.fit(prophet_df)
-
-        future = future_X.reset_index()[["solar", "usep"]]
-        future["ds"] = future_timestamps
-        forward_preds = model.predict(future)["yhat"].values
+        forward_preds = retrain_and_forecast_prophet(data_dict["df"], future_X, n_steps=48)
     else:
         col_map = {
             "Last Value": "lag_2",

@@ -145,7 +145,7 @@ The workflow in `.github/workflows/deploy.yml` runs on every push to `main`:
 
 | Secret / Var | Value | How to get it |
 |---|---|---|
-| `AZURE_CREDENTIALS` | Service principal JSON | `az ad sp create-for-rbac --name "github-deploy" --role contributor --scopes /subscriptions/3cec7872-315a-4ffd-9fe4-40841e39d418/resourceGroups/energy-forecast-rg --sdk-auth` |
+| `AZURE_CREDENTIALS` | Service principal JSON | `az ad sp create-for-rbac --name "github-deploy" --role contributor --scopes /subscriptions/<your-subscription-id>/resourceGroups/energy-forecast-rg --sdk-auth` |
 | `AZURE_APP_SERVICE_NAME` (var) | Your App Service name | Name you chose when creating the App Service |
 
 ### One-Time Azure Setup
@@ -160,7 +160,7 @@ az acr create --resource-group energy-forecast-rg --name energyforecastacr --sku
 #    - Region: Southeast Asia
 #    - SKU: Free F1
 #    - Image: energyforecastacr.azurecr.io/demand-forecast-app:latest
-#    - Startup command: uv run streamlit run src/streamlit_app.py --server.port 8000
+#    - Startup command: uv run streamlit run src/streamlit_app.py --server.port 8501
 
 # 3. Set env vars in App Service → Settings → Environment variables:
 #    SUPABASE_URL, SUPABASE_KEY

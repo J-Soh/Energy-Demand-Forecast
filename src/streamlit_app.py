@@ -109,7 +109,10 @@ def load_data() -> pd.DataFrame:
     if "created_at" in df.columns:
         df["created_at"] = pd.to_datetime(df["created_at"])
     if "timestamp" in df.columns:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        ts = pd.to_datetime(df["timestamp"])
+        if ts.dt.tz is not None:
+            ts = ts.dt.tz_localize(None)
+        df["timestamp"] = ts
     df = df.sort_values(["as_of_date", "created_at"], ascending=[True, False])
     df = df.drop_duplicates(subset=["as_of_date", "timestamp"], keep="first")
     return df
@@ -308,14 +311,14 @@ def run_dashboard() -> None:
         forward_df = date_df[date_df.get("forecast_type") == "forward"]
         st.markdown("---")
         st.caption(
-            f"{len(backtest_df)} backtest + {len(forward_df)} forward points. Refreshes every 5 min."
+            f"{len(backtest_df)} backtest + {len(forward_df)} forward points. Updates every 0100 Hours (SGT)."
         )
 
     st.markdown("<h1 style='margin-bottom:0;'>Energy Demand Forecast</h1>", unsafe_allow_html=True)
     st.caption(f"As of {selected_date.strftime('%B %d, %Y')}")
 
     # Forecast prediction (24 hours - today since yesterday data was collected)
-    if not forward_df.empty:  
+    if not forward_df.empty:
         fwd_meta = forward_df.iloc[0]
         f_model = fwd_meta.get("forecast_model", "N/A")
         fm1, fm2, fm3 = st.columns(3)
@@ -327,14 +330,14 @@ def run_dashboard() -> None:
         with fm3:
             avg = forward_df["forward_prediction"].mean()
             st.metric("Avg Forecast", f"{avg:.0f} MW")
-        st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True) # add gap
+        st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)  # add gap
         st.subheader("Forward Forecast (Next 24 Hours)")
         fwd_chart = forward_forecast_chart(forward_df)
         if fwd_chart:
             st.altair_chart(fwd_chart, width="stretch")
 
     # Metrics BACKTEST
-    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True) # add gap
+    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)  # add gap
     st.subheader("Demand Forecast Trend (Backtest)")
     if not backtest_df.empty:
         m1, m2, m3, m4 = st.columns(4)
