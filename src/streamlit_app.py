@@ -314,6 +314,28 @@ def run_dashboard() -> None:
     st.markdown("<h1 style='margin-bottom:0;'>Energy Demand Forecast</h1>", unsafe_allow_html=True)
     st.caption(f"As of {selected_date.strftime('%B %d, %Y')}")
 
+    # Forecast prediction (24 hours - today since yesterday data was collected)
+    if not forward_df.empty:  
+        fwd_meta = forward_df.iloc[0]
+        f_model = fwd_meta.get("forecast_model", "N/A")
+        fm1, fm2, fm3 = st.columns(3)
+        with fm1:
+            st.metric("Forecast Model", str(f_model))
+        with fm2:
+            peak = forward_df["forward_prediction"].max()
+            st.metric("Peak Forecast", f"{peak:.0f} MW")
+        with fm3:
+            avg = forward_df["forward_prediction"].mean()
+            st.metric("Avg Forecast", f"{avg:.0f} MW")
+        st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True) # add gap
+        st.subheader("Forward Forecast (Next 24 Hours)")
+        fwd_chart = forward_forecast_chart(forward_df)
+        if fwd_chart:
+            st.altair_chart(fwd_chart, width="stretch")
+
+    # Metrics BACKTEST
+    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True) # add gap
+    st.subheader("Demand Forecast Trend (Backtest)")
     if not backtest_df.empty:
         m1, m2, m3, m4 = st.columns(4)
         with m1:
@@ -330,26 +352,6 @@ def run_dashboard() -> None:
             mae = backtest_df["mae_lightgbm"].dropna()
             st.metric("LightGBM MAE", f"{mae.iloc[0]:.1f}" if not mae.empty else "N/A")
 
-    if not forward_df.empty:
-        st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
-        st.subheader("Forward Forecast (Next 24 Hours)")
-        fwd_meta = forward_df.iloc[0]
-        f_model = fwd_meta.get("forecast_model", "N/A")
-        fm1, fm2, fm3 = st.columns(3)
-        with fm1:
-            st.metric("Forecast Model", str(f_model))
-        with fm2:
-            peak = forward_df["forward_prediction"].max()
-            st.metric("Peak Forecast", f"{peak:.0f} MW")
-        with fm3:
-            avg = forward_df["forward_prediction"].mean()
-            st.metric("Avg Forecast", f"{avg:.0f} MW")
-        fwd_chart = forward_forecast_chart(forward_df)
-        if fwd_chart:
-            st.altair_chart(fwd_chart, width="stretch")
-
-    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
-    st.subheader("Demand Forecast Trend (Backtest)")
     trend = demand_trend_chart(backtest_df)
     if trend:
         st.altair_chart(trend, width="stretch")
