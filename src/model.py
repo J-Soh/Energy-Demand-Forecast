@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from prophet import Prophet
 
-from src.settings import PROPHET_PARAMS, SKFORECAST_LAGS
+from src.settings import ET_PARAMS, FEATURE_COLS, LGBM_PARAMS, PROPHET_PARAMS, SKFORECAST_LAGS
 
 logger = logging.getLogger(__name__)
 
@@ -249,3 +249,51 @@ def tune_extratrees(X_train, y_train):
     random_search.fit(X_train, y_train)
     logger.info("Best ExtraTrees CV MAE: %.4f", abs(random_search.best_score_))
     return random_search.best_params_
+
+
+def retrain_and_forecast_lightgbm(
+    df: pd.DataFrame, future_X: pd.DataFrame, n_steps: int = 48
+) -> np.ndarray:
+    """
+    Retrain LightGBM on all data and predict n_steps ahead.
+
+    Args:
+        df: Feature-engineered DataFrame with all historical rows.
+        future_X: Future exogenous features (n_steps × FEATURE_COLS).
+        n_steps: Number of 30-min periods to forecast (default 48).
+
+    Returns:
+        Array of predicted demand values.
+    """
+    from lightgbm import LGBMRegressor
+    from skforecast.recursive import ForecasterRecursive
+
+    regressor = LGBMRegressor(**LGBM_PARAMS)
+    forecaster = ForecasterRecursive(regressor, lags=SKFORECAST_LAGS)
+    forecaster.fit(y=df["demand"], exog=df[FEATURE_COLS])
+    predictions = forecaster.predict(steps=n_steps, exog=future_X)
+    return predictions.values
+
+
+def retrain_and_forecast_extratrees(
+    df: pd.DataFrame, future_X: pd.DataFrame, n_steps: int = 48
+) -> np.ndarray:
+    """
+    Retrain ExtraTrees on all data and predict n_steps ahead.
+
+    Args:
+        df: Feature-engineered DataFrame with all historical rows.
+        future_X: Future exogenous features (n_steps × FEATURE_COLS).
+        n_steps: Number of 30-min periods to forecast (default 48).
+
+    Returns:
+        Array of predicted demand values.
+    """
+    from skforecast.recursive import ForecasterRecursive
+    from sklearn.ensemble import ExtraTreesRegressor
+
+    regressor = ExtraTreesRegressor(**ET_PARAMS)
+    forecaster = ForecasterRecursive(regressor, lags=SKFORECAST_LAGS)
+    forecaster.fit(y=df["demand"], exog=df[FEATURE_COLS])
+    predictions = forecaster.predict(steps=n_steps, exog=future_X)
+    return predictions.values

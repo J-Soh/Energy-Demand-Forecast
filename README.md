@@ -1,7 +1,7 @@
 # Singapore Energy Demand Forecasting with full automation MLOps Pipeline and Azure Deployment
 
 ## Project Overview
-This project forecasts Singapore's electrical energy demand by combining Meta's Prophet time-series forecasting with skforecast (LightGBM + ExtraTrees) and rigorous model benchmarking against baseline models. The system pulls live market data from the Singapore NEMS API, engineers time-series features, predicts future demand, and automatically selects the best-performing model based on Mean Absolute Error (MAE).
+This project forecasts Singapore's electrical energy demand by combining Meta's Prophet time-series forecasting with skforecast (LightGBM + ExtraTrees) and rigorous model benchmarking against baseline models. The system pulls live market data from the Singapore NEMS API, engineers time-series features, predicts future demand in next 24 hours, and automatically selects the best-performing model based on Mean Absolute Error (MAE).
 
 Live preview: [App](https://energy-forecaster-app-auauerb0gugkg5af.southeastasia-01.azurewebsites.net/)
 

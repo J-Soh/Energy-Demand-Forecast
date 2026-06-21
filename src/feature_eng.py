@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.settings import TARGET
+from src.settings import FEATURE_COLS, TARGET
 
 
 def _set_timestamp_index(df: pd.DataFrame) -> pd.DataFrame:
@@ -81,3 +81,48 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     df = _create_exog_lags(df)
     df = df.dropna()
     return df
+
+
+def engineer_future_features(df: pd.DataFrame, n_steps: int = 48) -> pd.DataFrame:
+    """
+    Build future exogenous features for n_steps ahead forecasting.
+
+    Calendar features are derived from future timestamps. Rolling stats
+    and exogenous variables (solar, usep) use the last known values.
+
+    Args:
+        df: Feature-engineered DataFrame with timestamp index.
+        n_steps: Number of 30-min periods ahead (default 48 = 24 hours).
+
+    Returns:
+        DataFrame with n_steps rows and FEATURE_COLS columns.
+    """
+    last_timestamp = df.index[-1]
+    future_timestamps = pd.date_range(
+        start=last_timestamp + pd.Timedelta(minutes=30),
+        periods=n_steps,
+        freq="30min",
+    )
+
+    future_df = pd.DataFrame(index=future_timestamps)
+    future_df.index.name = "timestamp"
+
+    future_df["hour"] = future_df.index.hour
+    future_df["day_of_week"] = future_df.index.dayofweek
+    future_df["is_weekend"] = (future_df["day_of_week"] >= 5).astype(int)
+    future_df["hour_sin"] = np.sin(2 * np.pi * future_df["hour"] / 24)
+    future_df["hour_cos"] = np.cos(2 * np.pi * future_df["hour"] / 24)
+
+    solar_val = df["solar"].iloc[-1]
+    usep_val = df["usep"].iloc[-1]
+    avg_24h = df["demand"].iloc[-48:].mean() if len(df) >= 48 else df["demand"].mean()
+    std_24h = df["demand"].iloc[-48:].std() if len(df) >= 48 else df["demand"].std()
+    avg_7d = df["demand"].iloc[-336:].mean() if len(df) >= 336 else df["demand"].mean()
+
+    future_df["solar"] = solar_val
+    future_df["usep"] = usep_val
+    future_df["demand_avg_24h"] = avg_24h
+    future_df["demand_std_24h"] = std_24h
+    future_df["demand_avg_7d"] = avg_7d
+
+    return future_df[FEATURE_COLS]

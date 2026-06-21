@@ -11,6 +11,7 @@ from typing import Any  # allow any type (int, char etc) to by-pass
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
+from prophet import Prophet  # noqa: E402
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 from src.benchmark import compare_all_models, compute_baselines
@@ -21,9 +22,17 @@ from src.database import (
     save_results_to_supabase,
 )
 from src.extractor import extract_data
-from src.model import forecast_prophet, train_extratrees, train_lightgbm
+from src.feature_eng import engineer_future_features
+from src.model import (
+    forecast_prophet,
+    get_singapore_holidays,
+    retrain_and_forecast_extratrees,
+    retrain_and_forecast_lightgbm,
+    train_extratrees,
+    train_lightgbm,
+)
 from src.processor import prepare_data
-from src.settings import END_DATE, YESTR_DATE
+from src.settings import END_DATE, PROPHET_PARAMS, YESTR_DATE
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -151,6 +160,51 @@ def run_forecast() -> dict[str, Any]:
         if col:
             baseline_preds[row["Model"]] = data_dict["test"][col].values[: len(lgbm_preds)]
 
+    # 8. Forward forecast for next 24 hours
+    logger.info("Generating forward forecast for next 24 hours...")
+    future_X = engineer_future_features(data_dict["df"], n_steps=48)
+    future_timestamps = future_X.index
+
+    best_name = metrics["best_model"]
+    if best_name == "LightGBM":
+        forward_preds = retrain_and_forecast_lightgbm(data_dict["df"], future_X, n_steps=48)
+    elif best_name == "ExtraTrees":
+        forward_preds = retrain_and_forecast_extratrees(data_dict["df"], future_X, n_steps=48)
+    elif best_name == "Prophet":
+        prophet_df = data_dict["df"].reset_index()
+        prophet_df = prophet_df.rename(columns={"timestamp": "ds", "demand": "y"})
+        prophet_df = prophet_df[["ds", "y", "solar", "usep"]]
+
+        holidays_df = get_singapore_holidays(
+            pd.to_datetime(prophet_df["ds"].min()).year,
+            pd.to_datetime(prophet_df["ds"].max()).year,
+        )
+        model = Prophet(
+            holidays=holidays_df if not holidays_df.empty else None,
+            **PROPHET_PARAMS,
+        )
+        model.add_regressor("solar")
+        model.add_regressor("usep")
+        model.fit(prophet_df)
+
+        future = future_X.reset_index()[["solar", "usep"]]
+        future["ds"] = future_timestamps
+        forward_preds = model.predict(future)["yhat"].values
+    else:
+        col_map = {
+            "Last Value": "lag_2",
+            "Yesterday Same Time": "lag_48",
+            "Last Week Same Time": "lag_336",
+            "Avg Demand 24h": "demand_avg_24h",
+        }
+        col = col_map.get(best_name)
+        if col and col in data_dict["df"].columns:
+            forward_preds = data_dict["df"][col].iloc[-48:].values
+        else:
+            forward_preds = data_dict["df"]["demand"].iloc[-48:].values
+
+    logger.info("Forward forecast generated (%d periods)", len(forward_preds))
+
     model_pickle = base64.b64encode(pickle.dumps(lgbm_model)).decode("utf-8")
 
     return {
@@ -166,6 +220,8 @@ def run_forecast() -> dict[str, Any]:
         "comparison": comparison,
         "feature_importance": importance,
         "model_pickle": model_pickle,
+        "forward_timestamps": future_timestamps,
+        "forward_predictions": forward_preds,
     }
 
 

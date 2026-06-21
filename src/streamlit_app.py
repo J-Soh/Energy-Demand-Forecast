@@ -30,6 +30,7 @@ COLORS = {
     "chart_prophet": "#8B8BCC",
     "chart_lgbm": "#D4A054",
     "chart_et": "#6BA3BE",
+    "chart_forward": "#E8A87C",
 }
 
 MODEL_COLORS = {
@@ -237,6 +238,50 @@ def model_mae_bar(date_df: pd.DataFrame) -> alt.Chart | None:
     return chart
 
 
+def forward_forecast_chart(fdf: pd.DataFrame) -> alt.Chart | None:
+    if fdf.empty:
+        return None
+    chart = (
+        alt.Chart(fdf.sort_values("timestamp"))
+        .mark_line(
+            point=alt.OverlayMarkDef(size=30, filled=True),
+            strokeWidth=2,
+            strokeDash=[6, 3],
+        )
+        .encode(
+            x=alt.X(
+                "timestamp:T",
+                title=None,
+                axis=alt.Axis(
+                    labelColor=COLORS["text_secondary"],
+                    gridColor=COLORS["border"],
+                    domainColor=COLORS["border"],
+                    format="%b %d %H:%M",
+                ),
+            ),
+            y=alt.Y(
+                "forward_prediction:Q",
+                title="Predicted Demand (MW)",
+                axis=alt.Axis(
+                    labelColor=COLORS["text_secondary"],
+                    titleColor=COLORS["text_secondary"],
+                    gridColor=COLORS["border"],
+                    domainColor=COLORS["border"],
+                ),
+            ),
+            color=alt.ColorValue(COLORS["chart_forward"]),
+            tooltip=[
+                alt.Tooltip("timestamp:T", title="Time", format="%Y-%m-%d %H:%M"),
+                alt.Tooltip("forward_prediction:Q", title="Forecast (MW)", format=".1f"),
+            ],
+        )
+        .configure(background="transparent")
+        .configure_view(strokeWidth=0)
+        .properties(height=280)
+    )
+    return chart
+
+
 def run_dashboard() -> None:
     """Render the Streamlit UI for energy demand forecast visualisation."""
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
@@ -259,31 +304,35 @@ def run_dashboard() -> None:
             "AS-OF DATE", options=available_dates, format_func=lambda d: d.strftime("%Y-%m-%d")
         )
         date_df = df[df["as_of_date"] == selected_date].copy().sort_values("timestamp")
+        backtest_df = date_df[date_df.get("forecast_type", "backtest") != "forward"]
+        forward_df = date_df[date_df.get("forecast_type") == "forward"]
         st.markdown("---")
-        st.caption(f"Tracking {len(date_df)} time points. Data refreshes every 5 minutes.")
+        st.caption(
+            f"{len(backtest_df)} backtest + {len(forward_df)} forward points. Refreshes every 5 min."
+        )
 
     st.markdown("<h1 style='margin-bottom:0;'>Energy Demand Forecast</h1>", unsafe_allow_html=True)
     st.caption(f"As of {selected_date.strftime('%B %d, %Y')}")
 
-    if not date_df.empty:
+    if not backtest_df.empty:
         m1, m2, m3, m4 = st.columns(4)
         with m1:
-            actuals = date_df["actual_demand"].dropna()
+            actuals = backtest_df["actual_demand"].dropna()
             st.metric(
                 "Avg Actual Demand", f"{actuals.mean():.0f} MW" if not actuals.empty else "N/A"
             )
         with m2:
-            st.metric("Data Points", str(len(date_df)))
+            st.metric("Data Points", str(len(backtest_df)))
         with m3:
-            best = date_df["best_model"].dropna()
+            best = backtest_df["best_model"].dropna()
             st.metric("Best Model", best.iloc[0] if not best.empty else "N/A")
         with m4:
-            mae = date_df["mae_lightgbm"].dropna()
+            mae = backtest_df["mae_lightgbm"].dropna()
             st.metric("LightGBM MAE", f"{mae.iloc[0]:.1f}" if not mae.empty else "N/A")
 
     st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
-    st.subheader("Demand Forecast Trend")
-    trend = demand_trend_chart(date_df)
+    st.subheader("Demand Forecast Trend (Backtest)")
+    trend = demand_trend_chart(backtest_df)
     if trend:
         st.altair_chart(trend, width="stretch")
     else:
@@ -291,11 +340,29 @@ def run_dashboard() -> None:
 
     st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
     st.subheader("Model Benchmarking")
-    mae_chart = model_mae_bar(date_df)
+    mae_chart = model_mae_bar(backtest_df)
     if mae_chart:
         st.altair_chart(mae_chart, width="stretch")
     else:
         st.info("Model benchmarking requires accumulated data.")
+
+    if not forward_df.empty:
+        st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
+        st.subheader("Forward Forecast (Next 24 Hours)")
+        fwd_meta = forward_df.iloc[0]
+        f_model = fwd_meta.get("forecast_model", "N/A")
+        fm1, fm2, fm3 = st.columns(3)
+        with fm1:
+            st.metric("Forecast Model", str(f_model))
+        with fm2:
+            peak = forward_df["forward_prediction"].max()
+            st.metric("Peak Forecast", f"{peak:.0f} MW")
+        with fm3:
+            avg = forward_df["forward_prediction"].mean()
+            st.metric("Avg Forecast", f"{avg:.0f} MW")
+        fwd_chart = forward_forecast_chart(forward_df)
+        if fwd_chart:
+            st.altair_chart(fwd_chart, width="stretch")
 
     st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
     st.subheader("Forecast Data")
@@ -306,6 +373,8 @@ def run_dashboard() -> None:
             "prophet_prediction",
             "lightgbm_prediction",
             "extratrees_prediction",
+            "forward_prediction",
+            "forecast_type",
         ]
         available = [c for c in cols_to_show if c in date_df.columns]
         display = date_df[available].copy()

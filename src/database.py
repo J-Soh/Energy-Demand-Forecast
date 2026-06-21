@@ -38,6 +38,7 @@ def save_results_to_supabase(result: dict[str, Any]) -> None:
 
     Each row represents one 30-min time slice with actual demand, model
     predictions (Prophet, LightGBM, ExtraTrees) and evaluation metrics.
+    Also saves forward (next-day) predictions with forecast_type='forward'.
 
     Args:
         result: Dict from run_forecast() containing:
@@ -47,6 +48,8 @@ def save_results_to_supabase(result: dict[str, Any]) -> None:
               extratrees_predictions: aligned arrays
             - baselines: dict of baseline predictions
             - metrics: dict with best_model, mae_* values
+            - forward_timestamps: future timestamps
+            - forward_predictions: best model's forward predictions
 
     Raises:
         ValueError: If Supabase client cannot be created.
@@ -61,13 +64,14 @@ def save_results_to_supabase(result: dict[str, Any]) -> None:
     timestamps = result.get("timestamps")
     metrics = result.get("metrics", {})
 
-    if timestamps is None or actuals is None or len(timestamps) == 0:
+    if timestamps is None or len(timestamps) == 0:
         logger.warning("No forecast data to save")
         return
 
     last_value_arr = baselines.get("Last Value")
     yesterday_arr = baselines.get("Yesterday Same Time")
     rows: list[dict[str, Any]] = []
+
     for i in range(len(timestamps)):
         row: dict[str, Any] = {
             "id": str(uuid.uuid4()),
@@ -89,8 +93,30 @@ def save_results_to_supabase(result: dict[str, Any]) -> None:
             "mae_lightgbm": metrics.get("mae_lightgbm"),
             "mae_extratrees": metrics.get("mae_extratrees"),
             "mae_last_value": metrics.get("mae_last_value"),
+            "forecast_type": "backtest",
         }
         rows.append(row)
+
+    best_model_name = metrics.get("best_model")
+    forward_timestamps = result.get("forward_timestamps")
+    forward_predictions = result.get("forward_predictions")
+    if forward_timestamps is not None and forward_predictions is not None:
+        for i in range(len(forward_timestamps)):
+            rows.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "created_at": datetime.now().isoformat(),
+                    "as_of_date": as_of_date.isoformat() if as_of_date else None,
+                    "timestamp": forward_timestamps[i].isoformat()
+                    if hasattr(forward_timestamps[i], "isoformat")
+                    else str(forward_timestamps[i]),
+                    "actual_demand": None,
+                    "best_model": best_model_name,
+                    "forecast_type": "forward",
+                    "forward_prediction": float(forward_predictions[i]),
+                    "forecast_model": best_model_name,
+                }
+            )
 
     logger.info("Upserting %d rows into Supabase...", len(rows))
     supabase.table(SUPABASE_TABLE_NAME).upsert(rows, on_conflict="as_of_date,timestamp").execute()
