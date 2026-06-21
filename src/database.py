@@ -136,7 +136,7 @@ def read_raw_data_from_supabase() -> pd.DataFrame:
         response = (
             supabase.table(SUPABASE_RAW_TABLE)
             .select("timestamp,demand,solar,usep")
-            .order("timestamp")
+            .order("timestamp", desc=True)
             .range(0, 10000)
             .execute()
         )
@@ -145,6 +145,7 @@ def read_raw_data_from_supabase() -> pd.DataFrame:
             return pd.DataFrame()
         df = pd.DataFrame(response.data)
         df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = df.sort_values("timestamp").reset_index(drop=True)
         logger.info("Loaded %d rows from energy_raw", len(df))
         return df
     except Exception as e:

@@ -330,22 +330,6 @@ def run_dashboard() -> None:
             mae = backtest_df["mae_lightgbm"].dropna()
             st.metric("LightGBM MAE", f"{mae.iloc[0]:.1f}" if not mae.empty else "N/A")
 
-    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
-    st.subheader("Demand Forecast Trend (Backtest)")
-    trend = demand_trend_chart(backtest_df)
-    if trend:
-        st.altair_chart(trend, width="stretch")
-    else:
-        st.info("Trend data requires at least two daily runs.")
-
-    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
-    st.subheader("Model Benchmarking")
-    mae_chart = model_mae_bar(backtest_df)
-    if mae_chart:
-        st.altair_chart(mae_chart, width="stretch")
-    else:
-        st.info("Model benchmarking requires accumulated data.")
-
     if not forward_df.empty:
         st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
         st.subheader("Forward Forecast (Next 24 Hours)")
@@ -363,6 +347,22 @@ def run_dashboard() -> None:
         fwd_chart = forward_forecast_chart(forward_df)
         if fwd_chart:
             st.altair_chart(fwd_chart, width="stretch")
+
+    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
+    st.subheader("Demand Forecast Trend (Backtest)")
+    trend = demand_trend_chart(backtest_df)
+    if trend:
+        st.altair_chart(trend, width="stretch")
+    else:
+        st.info("Trend data requires at least two daily runs.")
+
+    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
+    st.subheader("Model Benchmarking")
+    mae_chart = model_mae_bar(backtest_df)
+    if mae_chart:
+        st.altair_chart(mae_chart, width="stretch")
+    else:
+        st.info("Model benchmarking requires accumulated data.")
 
     st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
     st.subheader("Forecast Data")

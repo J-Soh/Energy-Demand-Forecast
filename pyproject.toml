@@ -17,6 +17,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "scipy>=1.14.0",
     "holidays>=0.40",
+    "plotly>=6.8.0",
 ]
 
 [project.optional-dependencies]
