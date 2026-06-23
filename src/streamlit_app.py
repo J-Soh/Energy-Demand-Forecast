@@ -192,7 +192,6 @@ def model_mae_bar(date_df: pd.DataFrame) -> alt.Chart | None:
         "Prophet": "mae_prophet",
         "LightGBM": "mae_lightgbm",
         "ExtraTrees": "mae_extratrees",
-        "Last Value": "mae_last_value",
     }
     records = []
     for model_name, col in mae_cols.items():
@@ -350,7 +349,7 @@ def run_dashboard() -> None:
             st.metric("Data Points", str(len(backtest_df)))
         with m3:
             best = backtest_df["best_model"].dropna()
-            st.metric("Best Model", best.iloc[0] if not best.empty else "N/A")
+            st.metric("Best ML Model", best.iloc[0] if not best.empty else "N/A")
         with m4:
             mae = backtest_df["mae_lightgbm"].dropna()
             st.metric("LightGBM MAE", f"{mae.iloc[0]:.1f}" if not mae.empty else "N/A")

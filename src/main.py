@@ -119,14 +119,15 @@ def run_forecast() -> dict[str, Any]:
         key = row["Model"].lower().replace(" ", "_")
         metrics[f"mae_{key}"] = row["MAE"]
 
-    best_row = comparison.iloc[0]
-    metrics["best_model"] = best_row["Model"]
-    metrics["best_mae"] = best_row["MAE"]
+    ml_models = {"Prophet", "LightGBM", "ExtraTrees"}
+    ml_best = comparison[comparison["Model"].isin(ml_models)].iloc[0]
+    metrics["best_model"] = ml_best["Model"]
+    metrics["best_mae"] = ml_best["MAE"]
 
     # 10. Logger results
     logger.info("Energy Demand Forecast Results")
     logger.info("Date: %s", as_of_date)
-    logger.info("Best Model: %s (MAE: %.4f)", metrics["best_model"], metrics["best_mae"])
+    logger.info("Best ML Model: %s (MAE: %.4f)", metrics["best_model"], metrics["best_mae"])
     logger.info(
         "Prophet MAE: %.4f, RMSE: %.4f",
         mean_absolute_error(y_test, prophet_preds),
