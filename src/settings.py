@@ -1,7 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-YESTR_DATE = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-END_DATE = datetime.now().strftime("%Y-%m-%d")
+SGT = timezone(timedelta(hours=8))
+_now = datetime.now(SGT)
+YESTR_DATE = (_now - timedelta(days=1)).strftime("%Y-%m-%d")
+END_DATE = _now.strftime("%Y-%m-%d")
 
 SUPABASE_TABLE_NAME = "energy_forecast"
 SUPABASE_RAW_TABLE = "energy_raw"

@@ -2,7 +2,7 @@ name: Daily Energy Demand Forecast
 
 on:
   schedule:
-    # Run daily at 17:00 UTC (1:00 AM SGT)
+    # Run daily at 17:00 UTC (01:00 SGT)
     # Format (* * * * *): (min, hour, day of month, month, day of week) 
     - cron: '0 17 * * *' 
   workflow_dispatch:  # allows manual triggering from GitHub UI
