@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -15,17 +17,13 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
 COLORS = {
-    "bg": "#0E0E10",
-    "surface": "#1A1A1F",
-    "surface_raised": "#242429",
     "border": "#2E2E34",
     "text_primary": "#E8E5E0",
     "text_secondary": "#9C9A95",
-    "accent": "#D4A054",
     "accent_dim": "#A37B3F",
     "positive": "#5EA87A",
-    "negative": "#C75D5D",
     "chart_actual": "#5EA87A",
     "chart_prophet": "#8B8BCC",
     "chart_lgbm": "#D4A054",
@@ -40,44 +38,10 @@ MODEL_COLORS = {
     "ExtraTrees": COLORS["chart_et"],
 }
 
-CUSTOM_CSS = f"""
-<style>
-    .block-container {{ padding-top: 2rem; padding-bottom: 2rem; }}
-    section[data-testid="stSidebar"] {{
-        background-color: {COLORS["surface"]};
-        border-right: 1px solid {COLORS["border"]};
-    }}
-    div[data-testid="stMetric"] {{
-        background-color: {COLORS["surface"]};
-        border: 1px solid {COLORS["border"]};
-        border-radius: 8px;
-        padding: 1rem 1.25rem;
-    }}
-    div[data-testid="stMetric"] label {{
-        color: {COLORS["text_secondary"]};
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-    }}
-    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {{
-        font-size: 1.5rem;
-        font-weight: 600;
-    }}
-    .section-gap {{ margin-top: 2.5rem; margin-bottom: 0.5rem; }}
-    h3 {{
-        color: {COLORS["text_primary"]} !important;
-        font-weight: 500 !important;
-        font-size: 1.1rem !important;
-        letter-spacing: 0.01em;
-        padding-bottom: 0.25rem;
-        border-bottom: 1px solid {COLORS["border"]};
-    }}
-    h1 {{ font-weight: 600 !important; letter-spacing: -0.02em; }}
-    .stDataFrame {{ border-radius: 8px; overflow: hidden; }}
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-</style>
-"""
+
+def load_css() -> None:
+    with open(Path(__file__).parent.parent / "Tools" / "style.css", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 
 @st.cache_data(ttl=300)
@@ -223,10 +187,15 @@ def model_mae_bar(date_df: pd.DataFrame) -> alt.Chart | None:
                 "Model:N",
                 title=None,
                 sort=alt.EncodingSortField(field="MAE", order="ascending"),
-                axis=alt.Axis(labelColor=COLORS["text_primary"], domainColor=COLORS["border"]),
+                axis=alt.Axis(
+                    labelColor=COLORS["text_primary"],
+                    domainColor=COLORS["border"],
+                ),
             ),
             color=alt.condition(
-                alt.datum.is_best, alt.value(COLORS["positive"]), alt.value(COLORS["accent_dim"])
+                alt.datum.is_best,
+                alt.value(COLORS["positive"]),
+                alt.value(COLORS["accent_dim"]),
             ),
             tooltip=[
                 alt.Tooltip("Model:N", title="Model"),
@@ -286,7 +255,7 @@ def forward_forecast_chart(fdf: pd.DataFrame) -> alt.Chart | None:
 
 def run_dashboard() -> None:
     """Render the Streamlit UI for energy demand forecast visualisation."""
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+    load_css()
     df = load_data()
     if df.empty:
         st.title("Energy Demand Forecast")
@@ -294,11 +263,7 @@ def run_dashboard() -> None:
         return
 
     with st.sidebar:
-        st.markdown(
-            f"<p style='color:{COLORS['accent']};font-weight:600;font-size:1.1rem;"
-            f"letter-spacing:-0.01em;margin-bottom:0.25rem;'>Energy Demand Forecast</p>",
-            unsafe_allow_html=True,
-        )
+        st.markdown("<p class='sidebar-title'>Energy Demand Forecast</p>", unsafe_allow_html=True,)
         st.caption("Short-term electricity demand forecasting")
         st.markdown("---")
         available_dates = sorted(df["as_of_date"].unique(), reverse=True)
@@ -313,7 +278,7 @@ def run_dashboard() -> None:
             f"{len(backtest_df)} backtest + {len(forward_df)} forward points. Updates every 0100 Hours (SGT)."
         )
 
-    st.markdown("<h1 style='margin-bottom:0;'>Energy Demand Forecast</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='page-title'>Energy Demand Forecast</h1>", unsafe_allow_html=True,)
     st.caption(f"As of {selected_date.strftime('%B %d, %Y')}")
 
     # Forecast prediction (24 hours - today since yesterday data was collected)
@@ -329,14 +294,14 @@ def run_dashboard() -> None:
         with fm3:
             avg = forward_df["forward_prediction"].mean()
             st.metric("Avg Forecast", f"{avg:.0f} MW")
-        st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)  # add gap
+        st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
         st.subheader("Forward Forecast (Next 24 Hours)")
         fwd_chart = forward_forecast_chart(forward_df)
         if fwd_chart:
             st.altair_chart(fwd_chart, width="stretch")
 
     # Metrics BACKTEST
-    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)  # add gap
+    st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
     st.subheader("Demand Forecast Trend (Backtest)")
     if not backtest_df.empty:
         m1, m2, m3, m4 = st.columns(4)
