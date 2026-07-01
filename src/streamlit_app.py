@@ -263,7 +263,10 @@ def run_dashboard() -> None:
         return
 
     with st.sidebar:
-        st.markdown("<p class='sidebar-title'>Energy Demand Forecast</p>", unsafe_allow_html=True,)
+        st.markdown(
+            "<p class='sidebar-title'>Energy Demand Forecast</p>",
+            unsafe_allow_html=True,
+        )
         st.caption("Short-term electricity demand forecasting")
         st.markdown("---")
         available_dates = sorted(df["as_of_date"].unique(), reverse=True)
@@ -278,7 +281,10 @@ def run_dashboard() -> None:
             f"{len(backtest_df)} backtest + {len(forward_df)} forward points. Updates every 0100 Hours (SGT)."
         )
 
-    st.markdown("<h1 class='page-title'>Energy Demand Forecast</h1>", unsafe_allow_html=True,)
+    st.markdown(
+        "<h1 class='page-title'>Energy Demand Forecast</h1>",
+        unsafe_allow_html=True,
+    )
     st.caption(f"As of {selected_date.strftime('%B %d, %Y')}")
 
     # Forecast prediction (24 hours - today since yesterday data was collected)
